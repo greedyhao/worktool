@@ -12,6 +12,7 @@ use super::{preview_files_being_dropped, UIPageFun};
 enum SpiConvType {
     RAW,
     BluetrumVoiceDump,
+    TXT,
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -98,6 +99,7 @@ impl LogicToolPage {
                         SpiConvType::BluetrumVoiceDump,
                         "蓝讯音频 DUMP 格式",
                     );
+                    ui.radio_value(&mut self.arg.spi.conv_type, SpiConvType::TXT, "TXT");
                 });
                 ui.end_row();
                 ui.add_enabled_ui(!self.doing, |ui| {
@@ -173,7 +175,7 @@ fn logic_tool_proc_iis(_args: &LogicIISArgs, path: &str) {
     let conv_file = path;
 
     if let Some(src) = logic_tool_preproc(&conv_file, KINGST_IIS_FILE_FORMAT) {
-        println!("open {} success", &conv_file);
+        // println!("open {} success", &conv_file);
         let out_path = format!("{}.out", &conv_file);
         let mut out_file = File::create(out_path).unwrap();
 
@@ -197,7 +199,7 @@ const KINGST_SPI_FILE_FORMAT: &'static str = "Time [s],Packet ID,MOSI,MISO";
 
 fn logic_tool_proc_spi_raw(conv_file: &str) {
     if let Some(src) = logic_tool_preproc(conv_file, KINGST_SPI_FILE_FORMAT) {
-        println!("open {} success", conv_file);
+        // println!("open {} success", conv_file);
         let out_path = format!("{}.out", conv_file);
         let mut out_file = File::create(out_path).unwrap();
 
@@ -299,9 +301,38 @@ fn logic_tool_proc_spi_bluetrum(conv_file: &str) {
     }
 }
 
+fn logic_tool_proc_spi_txt(conv_file: &str) {
+    if let Some(src) = logic_tool_preproc(conv_file, KINGST_SPI_FILE_FORMAT) {
+        // println!("open {} success", conv_file);
+        let out_path = format!("{}.txt", conv_file);
+        let mut out_file = File::create(out_path).unwrap();
+
+        let mut cnt = 0;
+        for line in src {
+            if let Ok(line) = line {
+                // 跳过错误数据
+                if line.contains(KINGST_ERROR_STR) {
+                    continue;
+                }
+
+                let data: String = line.split(',').filter(|w| w.contains("0x")).collect();
+                let data = data.trim_start_matches("0x");
+                let data = u8::from_str_radix(data, 16).unwrap();
+                // out_file.write(&[data]).unwrap();
+                if cnt > 0 && (cnt % 16 == 0) {
+                    write!(out_file, "\n").unwrap();
+                }
+                write!(out_file, "{:02x} ", data).unwrap();
+                cnt += 1;
+            }
+        }
+    }
+}
+
 fn logic_tool_proc_spi(args: &LogicSpiArgs, path: &str) {
     match args.conv_type {
         SpiConvType::RAW => logic_tool_proc_spi_raw(path),
         SpiConvType::BluetrumVoiceDump => logic_tool_proc_spi_bluetrum(path),
+        SpiConvType::TXT => logic_tool_proc_spi_txt(path),
     }
 }
