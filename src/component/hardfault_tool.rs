@@ -1,11 +1,13 @@
 use serde::Serialize;
 use std::{
-    borrow::Cow,
     fs::File,
     io::{BufRead, BufReader},
+    sync::mpsc::{self, Receiver, Sender},
+    thread,
 };
 
 use super::UIPageFun;
+use crate::component::preview_files_being_dropped;
 
 #[derive(Debug, Default, Serialize, Clone)]
 pub struct CPURegs {
@@ -13,16 +15,107 @@ pub struct CPURegs {
     header: String,
 }
 
-#[derive(Clone, Copy, Debug, serde::Deserialize, serde::Serialize)]
-pub struct HardfaultToolPage {}
+static REG_NAME: [&'static str; 32] = [
+    "zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2", "s0", "s1", "a0", "a1", "a2", "a3", "a4",
+    "a5", "a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11", "t3", "t4",
+    "t5", "t6",
+];
 
-impl UIPageFun for HardfaultToolPage {
-    fn update(&mut self, _ctx: &egui::Context, ui: &mut egui::Ui) {
-        ui.heading("Hardfault Tool");
+impl CPURegs {
+    fn display(&self) -> String {
+        let mut ret = String::new();
+        ret.push_str(&format!("{}\n", self.header));
+        for (i, reg) in self.regs.iter().enumerate() {
+            if i > 0 && (i % 4 == 0) {
+                ret.push('\n');
+            }
+            ret.push_str(&format!("{}: {}, ", REG_NAME[i], reg));
+        }
+        ret
     }
 }
 
-fn _hardfault_tool<'a>(path: Cow<'a, str>) -> Vec<CPURegs> {
+pub struct HardfaultToolPage {
+    path: String,
+    channel: (Sender<Vec<CPURegs>>, Receiver<Vec<CPURegs>>),
+    doing: bool,
+    regs: Vec<CPURegs>,
+    selected: usize,
+}
+
+impl HardfaultToolPage {
+    pub fn new() -> Self {
+        HardfaultToolPage {
+            path: String::new(),
+            channel: mpsc::channel(),
+            doing: false,
+            regs: Vec::new(),
+            selected: 0,
+        }
+    }
+
+    fn grid_contents(&mut self, _ctx: &egui::Context, ui: &mut egui::Ui) {
+        ui.label("文件地址");
+        ui.text_edit_singleline(&mut self.path);
+        ui.end_row();
+
+        if ui.button("处理").clicked() {
+            self.doing = true;
+            let tx = self.channel.0.clone();
+            let path = self.path.clone();
+            thread::spawn(move || {
+                let ret = hardfault_tool(path);
+                tx.send(ret).unwrap();
+            });
+        }
+        ui.end_row();
+
+        ui.separator();
+        ui.end_row();
+
+        ui.add_enabled_ui(self.regs.len() > 0, |ui| {
+            ui.label("选择需要显示的寄存器组");
+            egui::ComboBox::from_label("")
+                .selected_text(format!("{}", self.selected))
+                .show_ui(ui, |ui| {
+                    let len = self.regs.len();
+                    for i in 0..len {
+                        ui.selectable_value(&mut self.selected, i, format!("{}", i));
+                    }
+                });
+        });
+        ui.end_row();
+    }
+}
+
+impl UIPageFun for HardfaultToolPage {
+    fn update(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
+        ui.heading("Hardfault Tool");
+
+        egui::Grid::new("hardfault")
+            .num_columns(2)
+            .spacing([40.0, 4.0])
+            .striped(true)
+            .show(ui, |ui| self.grid_contents(ctx, ui));
+
+        // for reg in &self.regs {
+        //     ui.label(reg.display());
+        // }
+        if self.regs.len() > 0 {
+            ui.label(self.regs[self.selected].display());
+        }
+
+        if let Ok(regs) = self.channel.1.try_recv() {
+            self.doing = false;
+            self.regs = regs;
+            self.selected = 0;
+        }
+
+        preview_files_being_dropped(ctx, &mut self.path);
+    }
+}
+
+fn hardfault_tool(path: String) -> Vec<CPURegs> {
     let start_flag1 = "ERR:";
     let start_flag2 = "EPC:";
     let start_flag3 = "WDT_RST:";
@@ -30,7 +123,7 @@ fn _hardfault_tool<'a>(path: Cow<'a, str>) -> Vec<CPURegs> {
     let empty_str = "0xXXXXXXXX";
     let mut regs = CPURegs::default();
     let mut reg_vec = Vec::new();
-    let path = path.to_string();
+
     if let Ok(file) = File::open(&path) {
         println!("open {} success", &path);
 
@@ -46,9 +139,12 @@ fn _hardfault_tool<'a>(path: Cow<'a, str>) -> Vec<CPURegs> {
                             if l.len() == 0 {
                                 continue;
                             }
+                            if let Ok(reg) = u32::from_str_radix(l, 16) {
+                                regs.regs[index] = format!("{:#010X}", reg);
+                            } else {
+                                state = 3;
+                            }
 
-                            regs.regs[index] =
-                                format!("{:#010X}", u32::from_str_radix(l, 16).unwrap());
                             index += 1;
                         }
                         if index >= 32 {
@@ -81,8 +177,12 @@ fn _hardfault_tool<'a>(path: Cow<'a, str>) -> Vec<CPURegs> {
                                 continue;
                             }
 
-                            regs.regs[index] =
-                                format!("{:#010X}", u32::from_str_radix(l, 16).unwrap());
+                            if let Ok(reg) = u32::from_str_radix(l, 16) {
+                                regs.regs[index] = format!("{:#010X}", reg);
+                            } else {
+                                state = 3;
+                            }
+
                             index += 1;
                         }
                         if index >= 19 {

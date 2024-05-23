@@ -48,8 +48,7 @@ enum Protocal {
     IIS,
 }
 
-#[repr(C)]
-union ProtocalArgs {
+struct ProtocalArgs {
     spi: LogicSpiArgs,
     iis: LogicIISArgs,
 }
@@ -73,7 +72,64 @@ impl LogicToolPage {
                 spi: LogicSpiArgs {
                     conv_type: SpiConvType::RAW,
                 },
+                iis: LogicIISArgs {},
             },
+        }
+    }
+    fn grid_contents(&mut self, _ctx: &egui::Context, ui: &mut egui::Ui) {
+        ui.label("协议类型");
+        ui.horizontal(|ui| {
+            ui.radio_value(&mut self.protocal, Protocal::SPI, "SPI");
+            ui.radio_value(&mut self.protocal, Protocal::IIS, "IIS");
+        });
+        ui.end_row();
+
+        ui.label("文件地址");
+        ui.text_edit_singleline(&mut self.path);
+        ui.end_row();
+
+        match &mut self.protocal {
+            Protocal::SPI => {
+                ui.label("spi 格式");
+                ui.horizontal(|ui| {
+                    ui.radio_value(&mut self.arg.spi.conv_type, SpiConvType::RAW, "RAW");
+                    ui.radio_value(
+                        &mut self.arg.spi.conv_type,
+                        SpiConvType::BluetrumVoiceDump,
+                        "蓝讯音频 DUMP 格式",
+                    );
+                });
+                ui.end_row();
+                ui.add_enabled_ui(!self.doing, |ui| {
+                    if ui.button("处理").clicked() {
+                        self.doing = true;
+                        let tx = self.channel.0.clone();
+                        let path = self.path.clone();
+                        let arg;
+                        arg = self.arg.spi.clone();
+                        thread::spawn(move || {
+                            logic_tool_proc_spi(&arg, &path);
+                            tx.send(false).unwrap();
+                        });
+                    }
+                });
+                ui.end_row();
+            }
+            Protocal::IIS => {
+                ui.add_enabled_ui(!self.doing, |ui| {
+                    if ui.button("处理").clicked() {
+                        self.doing = true;
+                        let tx = self.channel.0.clone();
+                        let path = self.path.clone();
+                        let arg = self.arg.iis.clone();
+                        thread::spawn(move || {
+                            logic_tool_proc_iis(&arg, &path);
+                            tx.send(false).unwrap();
+                        });
+                    }
+                });
+                ui.end_row();
+            }
         }
     }
 }
@@ -82,79 +138,16 @@ impl UIPageFun for LogicToolPage {
     fn update(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
         ui.heading("Logic Tool");
 
-        ui.horizontal(|ui| {
-            ui.label("协议类型");
-            // ui.radio_value(
-            //     &mut self.protocal,
-            //     Protocal::SPI(LogicSpiArgs::default()),
-            //     "SPI",
-            // );
-            // ui.radio_value(
-            //     &mut self.protocal,
-            //     Protocal::IIS(LogicIISArgs::default()),
-            //     "IIS",
-            // );
-            ui.radio_value(&mut self.protocal, Protocal::SPI, "SPI");
-            ui.radio_value(&mut self.protocal, Protocal::IIS, "IIS");
-        });
-
-        ui.horizontal(|ui| {
-            ui.label("文件地址");
-            ui.text_edit_singleline(&mut self.path);
-        });
+        egui::Grid::new("hardfault")
+            .num_columns(2)
+            .spacing([40.0, 4.0])
+            .striped(true)
+            .show(ui, |ui| self.grid_contents(ctx, ui));
 
         if let Ok(doing) = self.channel.1.try_recv() {
             self.doing = doing;
         }
 
-        match &mut self.protocal {
-            Protocal::SPI => {
-                ui.horizontal(|ui| {
-                    ui.label("spi 格式");
-                    unsafe {
-                    ui.radio_value(&mut self.arg.spi.conv_type, SpiConvType::RAW, "RAW");
-                    ui.radio_value(
-                        &mut self.arg.spi.conv_type,
-                        SpiConvType::BluetrumVoiceDump,
-                        "蓝讯音频 DUMP 格式",
-                    );
-                }});
-                ui.separator();
-                ui.add_enabled_ui(!self.doing, |ui| {
-                    if ui.button("处理").clicked() {
-                        self.doing = true;
-                        let tx = self.channel.0.clone();
-                        let path = self.path.clone();
-                        let arg;
-                        unsafe {
-                            arg = self.arg.spi.clone();
-                        }
-                        thread::spawn(move || {
-                            logic_tool_proc_spi(&arg, &path);
-                            tx.send(false).unwrap();
-                        });
-                    }
-                });
-            }
-            Protocal::IIS => {
-                ui.separator();
-                ui.add_enabled_ui(!self.doing, |ui| {
-                    if ui.button("处理").clicked() {
-                        self.doing = true;
-                        let tx = self.channel.0.clone();
-                        let path = self.path.clone();
-                        let arg;
-                        unsafe {
-                            arg = self.arg.iis.clone();
-                        }
-                        thread::spawn(move || {
-                            logic_tool_proc_iis(&arg, &path);
-                            tx.send(false).unwrap();
-                        });
-                    }
-                });
-            }
-        }
         preview_files_being_dropped(ctx, &mut self.path);
     }
 }

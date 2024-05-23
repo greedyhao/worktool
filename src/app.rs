@@ -53,7 +53,7 @@ impl eframe::App for TemplateApp {
                     self.page = UIPage::LogicTool(LogicToolPage::new());
                 }
                 if ui.button("hardfault tool").clicked() {
-                    self.page = UIPage::HardfaultTool(HardfaultToolPage {});
+                    self.page = UIPage::HardfaultTool(HardfaultToolPage::new());
                 }
             });
             ui.separator();
@@ -64,6 +64,7 @@ impl eframe::App for TemplateApp {
             self.page.update(ctx, ui);
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+                ui.hyperlink("https://github.com/greedyhao/worktool");
                 egui::warn_if_debug_build(ui);
             });
         });
