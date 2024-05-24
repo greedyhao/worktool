@@ -18,7 +18,7 @@ fn main() -> eframe::Result<()> {
         ..Default::default()
     };
     eframe::run_native(
-        "eframe template",
+        "worktool",
         native_options,
         Box::new(|cc| Box::new(worktool::TemplateApp::new(cc))),
     )

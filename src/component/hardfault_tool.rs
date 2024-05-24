@@ -6,7 +6,7 @@ use std::{
     thread,
 };
 
-use super::UIPageFun;
+use super::{convert_file_to_utf8, UIPageFun};
 use crate::component::preview_files_being_dropped;
 
 #[derive(Debug, Default, Serialize, Clone)]
@@ -59,15 +59,17 @@ impl HardfaultToolPage {
         ui.text_edit_singleline(&mut self.path);
         ui.end_row();
 
-        if ui.button("处理").clicked() {
-            self.doing = true;
-            let tx = self.channel.0.clone();
-            let path = self.path.clone();
-            thread::spawn(move || {
-                let ret = hardfault_tool(path);
-                tx.send(ret).unwrap();
-            });
-        }
+        ui.add_enabled_ui(!self.doing && self.path.len() > 0, |ui| {
+            if ui.button("处理").clicked() {
+                self.doing = true;
+                let tx = self.channel.0.clone();
+                let path = self.path.clone();
+                thread::spawn(move || {
+                    let ret = hardfault_tool(path);
+                    tx.send(ret).unwrap();
+                });
+            }
+        });
         ui.end_row();
 
         ui.separator();
@@ -123,6 +125,8 @@ fn hardfault_tool(path: String) -> Vec<CPURegs> {
     let empty_str = "0xXXXXXXXX";
     let mut regs = CPURegs::default();
     let mut reg_vec = Vec::new();
+
+    convert_file_to_utf8(&path);
 
     if let Ok(file) = File::open(&path) {
         println!("open {} success", &path);

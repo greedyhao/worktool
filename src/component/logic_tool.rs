@@ -37,21 +37,26 @@ impl Default for LogicIISArgs {
     }
 }
 
-// #[derive(PartialEq, Debug)]
-// enum Protocal {
-//     SPI(LogicSpiArgs),
-//     IIS(LogicIISArgs),
-// }
+#[derive(Clone, Copy, PartialEq, Debug)]
+struct LogicUARTArgs {}
+
+impl Default for LogicUARTArgs {
+    fn default() -> Self {
+        LogicUARTArgs {}
+    }
+}
 
 #[derive(PartialEq, Debug)]
 enum Protocal {
     SPI,
     IIS,
+    UART,
 }
 
 struct ProtocalArgs {
     spi: LogicSpiArgs,
     iis: LogicIISArgs,
+    uart: LogicUARTArgs,
 }
 
 pub struct LogicToolPage {
@@ -73,7 +78,8 @@ impl LogicToolPage {
                 spi: LogicSpiArgs {
                     conv_type: SpiConvType::RAW,
                 },
-                iis: LogicIISArgs {},
+                iis: LogicIISArgs::default(),
+                uart: LogicUARTArgs::default(),
             },
         }
     }
@@ -82,6 +88,7 @@ impl LogicToolPage {
         ui.horizontal(|ui| {
             ui.radio_value(&mut self.protocal, Protocal::SPI, "SPI");
             ui.radio_value(&mut self.protocal, Protocal::IIS, "IIS");
+            ui.radio_value(&mut self.protocal, Protocal::UART, "UART");
         });
         ui.end_row();
 
@@ -102,7 +109,7 @@ impl LogicToolPage {
                     ui.radio_value(&mut self.arg.spi.conv_type, SpiConvType::TXT, "TXT");
                 });
                 ui.end_row();
-                ui.add_enabled_ui(!self.doing, |ui| {
+                ui.add_enabled_ui(!self.doing && self.path.len() > 0, |ui| {
                     if ui.button("处理").clicked() {
                         self.doing = true;
                         let tx = self.channel.0.clone();
@@ -118,7 +125,7 @@ impl LogicToolPage {
                 ui.end_row();
             }
             Protocal::IIS => {
-                ui.add_enabled_ui(!self.doing, |ui| {
+                ui.add_enabled_ui(!self.doing && self.path.len() > 0, |ui| {
                     if ui.button("处理").clicked() {
                         self.doing = true;
                         let tx = self.channel.0.clone();
@@ -126,6 +133,21 @@ impl LogicToolPage {
                         let arg = self.arg.iis.clone();
                         thread::spawn(move || {
                             logic_tool_proc_iis(&arg, &path);
+                            tx.send(false).unwrap();
+                        });
+                    }
+                });
+                ui.end_row();
+            }
+            Protocal::UART => {
+                ui.add_enabled_ui(!self.doing && self.path.len() > 0, |ui| {
+                    if ui.button("处理").clicked() {
+                        self.doing = true;
+                        let tx = self.channel.0.clone();
+                        let path = self.path.clone();
+                        let arg = self.arg.uart.clone();
+                        thread::spawn(move || {
+                            logic_tool_proc_uart(&arg, &path);
                             tx.send(false).unwrap();
                         });
                     }
@@ -335,4 +357,38 @@ fn logic_tool_proc_spi(args: &LogicSpiArgs, path: &str) {
         SpiConvType::BluetrumVoiceDump => logic_tool_proc_spi_bluetrum(path),
         SpiConvType::TXT => logic_tool_proc_spi_txt(path),
     }
+}
+
+const KINGST_UART_FILE_FORMAT: &'static str = "Time [s],Value,Parity Error,Framing Error";
+
+fn logic_tool_proc_uart_txt(conv_file: &str) {
+    if let Some(src) = logic_tool_preproc(conv_file, KINGST_UART_FILE_FORMAT) {
+        // println!("open {} success", conv_file);
+        let out_path = format!("{}.txt", conv_file);
+        let mut out_file = File::create(out_path).unwrap();
+
+        let mut cnt = 0;
+        for line in src {
+            if let Ok(line) = line {
+                // 跳过错误数据
+                if line.contains(KINGST_ERROR_STR) {
+                    continue;
+                }
+
+                let data: String = line.split(',').filter(|w| w.contains("0x")).collect();
+                let data = data.trim_start_matches("0x");
+                let data = u8::from_str_radix(data, 16).unwrap();
+                // out_file.write(&[data]).unwrap();
+                if cnt > 0 && (cnt % 16 == 0) {
+                    write!(out_file, "\n").unwrap();
+                }
+                write!(out_file, "{:02x} ", data).unwrap();
+                cnt += 1;
+            }
+        }
+    }
+}
+
+fn logic_tool_proc_uart(_args: &LogicUARTArgs, path: &str) {
+    logic_tool_proc_uart_txt(path);
 }
