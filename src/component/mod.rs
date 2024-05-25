@@ -2,7 +2,10 @@ mod hardfault_tool;
 mod home;
 mod logic_tool;
 
-use std::{fs::{self, File}, io::Write};
+use std::{
+    fs::{self, File},
+    io::Write,
+};
 
 pub use hardfault_tool::HardfaultToolPage;
 pub use home::HomePage;
