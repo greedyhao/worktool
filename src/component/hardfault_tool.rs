@@ -6,7 +6,7 @@ use std::{
     thread,
 };
 
-use super::{convert_file_to_utf8, UIPageFun};
+use super::{convert_file_to_utf8, detect_encoding, UIPageFun};
 use crate::component::preview_files_being_dropped;
 
 #[derive(Debug, Default, Serialize, Clone)]
@@ -126,7 +126,9 @@ fn hardfault_tool(path: String) -> Vec<CPURegs> {
     let mut regs = CPURegs::default();
     let mut reg_vec = Vec::new();
 
-    convert_file_to_utf8(&path);
+    if let Some(encode) = detect_encoding(&path) {
+        convert_file_to_utf8(&path, &encode).unwrap();
+    }
 
     if let Ok(mut file) = File::open(&path) {
         println!("open {} success", &path);
