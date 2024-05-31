@@ -6,7 +6,7 @@ use std::{
     thread,
 };
 
-use super::{convert_file_to_utf8, detect_encoding, UIPageFun};
+use super::{convert_file_to_utf8, detect_encoding, UIPageFun, UIPageSave};
 use crate::component::preview_files_being_dropped;
 
 #[derive(Debug, Default, Serialize, Clone)]
@@ -91,7 +91,7 @@ impl HardfaultToolPage {
 }
 
 impl UIPageFun for HardfaultToolPage {
-    fn update(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
+    fn update(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, _save: &mut UIPageSave) {
         ui.heading("Hardfault Tool");
 
         egui::Grid::new("hardfault")

@@ -1,4 +1,6 @@
-use crate::component::{HardfaultToolPage, HomePage, LogicToolPage, UIPage};
+use crate::component::{
+    HardfaultToolPage, HciToolPage, HomePage, LogicToolPage, UIPage, UIPageSave,
+};
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -6,13 +8,15 @@ use crate::component::{HardfaultToolPage, HomePage, LogicToolPage, UIPage};
 pub struct TemplateApp {
     #[serde(skip)] // This how you opt-out of serialization of a field
     page: UIPage,
+
+    page_save: UIPageSave,
 }
 
 impl Default for TemplateApp {
     fn default() -> Self {
         Self {
             page: UIPage::Home(HomePage {}),
-            // handle: UIPageHandle::default(),
+            page_save: UIPageSave::default(),
         }
     }
 }
@@ -55,13 +59,16 @@ impl eframe::App for TemplateApp {
                 if ui.button("hardfault tool").clicked() {
                     self.page = UIPage::HardfaultTool(HardfaultToolPage::new());
                 }
+                if ui.button("hci tool").clicked() {
+                    self.page = UIPage::HciTool(HciToolPage::new());
+                }
             });
             ui.separator();
             egui::widgets::global_dark_light_mode_buttons(ui);
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            self.page.update(ctx, ui);
+            self.page.update(ctx, ui, &mut self.page_save);
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 ui.hyperlink("https://github.com/greedyhao/worktool");

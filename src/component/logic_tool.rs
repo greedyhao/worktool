@@ -6,7 +6,7 @@ use std::{
     thread,
 };
 
-use super::{preview_files_being_dropped, UIPageFun};
+use super::{preview_files_being_dropped, UIPageFun, UIPageSave};
 
 #[derive(Copy, Clone, PartialEq, Debug, Deserialize)]
 enum SpiConvType {
@@ -159,7 +159,7 @@ impl LogicToolPage {
 }
 
 impl UIPageFun for LogicToolPage {
-    fn update(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
+    fn update(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, _save: &mut UIPageSave) {
         ui.heading("Logic Tool");
 
         egui::Grid::new("hardfault")

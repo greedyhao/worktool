@@ -1,4 +1,5 @@
 mod hardfault_tool;
+mod hci_tool;
 mod home;
 mod logic_tool;
 
@@ -8,29 +9,44 @@ use std::{
     path::PathBuf,
 };
 
+pub use self::hci_tool::*;
 pub use hardfault_tool::HardfaultToolPage;
 pub use home::HomePage;
 pub use logic_tool::LogicToolPage;
 
-// #[derive(serde::Deserialize, serde::Serialize)]
 pub enum UIPage {
     Home(HomePage),
     LogicTool(LogicToolPage),
     HardfaultTool(HardfaultToolPage),
+    HciTool(HciToolPage),
 }
 
 impl UIPage {
-    pub fn update(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
+    pub fn update(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, save: &mut UIPageSave) {
         match self {
-            Self::Home(page) => page.update(ctx, ui),
-            Self::LogicTool(page) => page.update(ctx, ui),
-            Self::HardfaultTool(page) => page.update(ctx, ui),
+            Self::Home(page) => page.update(ctx, ui, save),
+            Self::LogicTool(page) => page.update(ctx, ui, save),
+            Self::HardfaultTool(page) => page.update(ctx, ui, save),
+            Self::HciTool(page) => page.update(ctx, ui, save),
+        }
+    }
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct UIPageSave {
+    hci_tool: HciToolSave,
+}
+
+impl Default for UIPageSave {
+    fn default() -> Self {
+        UIPageSave {
+            hci_tool: HciToolSave::default(),
         }
     }
 }
 
 pub trait UIPageFun {
-    fn update(&mut self, ctx: &egui::Context, ui: &mut egui::Ui);
+    fn update(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, save: &mut UIPageSave);
 }
 
 /// Preview hovering files:
