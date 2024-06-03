@@ -6,7 +6,10 @@ use std::{
     thread,
 };
 
-use super::{preview_files_being_dropped, UIPageFun, UIPageSave};
+use super::preview_files_being_dropped;
+use crate::component::Interface;
+
+static LOGIC_TOOL_PAGE_KEY: &'static str = "LogicKey";
 
 #[derive(Copy, Clone, PartialEq, Debug, Deserialize)]
 enum SpiConvType {
@@ -46,32 +49,83 @@ impl Default for LogicUARTArgs {
     }
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone, Default)]
 enum Protocal {
+    #[default]
     SPI,
     IIS,
     UART,
 }
 
+#[derive(Debug)]
 struct ProtocalArgs {
     spi: LogicSpiArgs,
     iis: LogicIISArgs,
     uart: LogicUARTArgs,
 }
 
+#[derive(Debug, Default, serde::Deserialize, serde::Serialize)]
+struct LogicToolPageSave {
+    visable: bool,
+}
+
+#[derive(Debug)]
 pub struct LogicToolPage {
+    save: LogicToolPageSave,
     protocal: Protocal,
     path: String,
+    history: Option<String>,
     doing: bool,
     channel: (Sender<bool>, Receiver<bool>),
     arg: ProtocalArgs,
 }
 
-impl LogicToolPage {
-    pub fn new() -> Self {
-        LogicToolPage {
+impl eframe::App for LogicToolPage {
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        eframe::set_value(storage, LOGIC_TOOL_PAGE_KEY, &self.save);
+    }
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        if self.save.visable {
+            egui::Window::new("LogicTool").show(ctx, |ui| {
+                ui.heading("Logic Tool");
+
+                egui::Grid::new("hardfault")
+                    .num_columns(2)
+                    .spacing([40.0, 4.0])
+                    .striped(true)
+                    .show(ui, |ui| self.grid_contents(ctx, ui));
+
+                if let Ok(doing) = self.channel.1.try_recv() {
+                    self.doing = doing;
+                }
+
+                ctx.input(|i| {
+                    if let Some(point) = i.pointer.latest_pos() {
+                        if let Some(path) = &self.history {
+                            if ui.min_rect().contains(point) {
+                                self.path = path.to_string();
+                            }
+                            self.history = None;
+                        }
+                    }
+                });
+
+                if let Some(path) = preview_files_being_dropped(ctx) {
+                    self.history = Some(path);
+                    ctx.request_repaint();
+                }
+            });
+        }
+    }
+}
+
+impl Interface for LogicToolPage {
+    fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        let mut page = LogicToolPage {
+            save: LogicToolPageSave { visable: false },
             protocal: Protocal::SPI,
             path: String::new(),
+            history: None,
             doing: false,
             channel: mpsc::channel(),
             arg: ProtocalArgs {
@@ -81,8 +135,19 @@ impl LogicToolPage {
                 iis: LogicIISArgs::default(),
                 uart: LogicUARTArgs::default(),
             },
+        };
+
+        if let Some(storage) = cc.storage {
+            page.save = eframe::get_value(storage, LOGIC_TOOL_PAGE_KEY).unwrap_or_default();
         }
+        page
     }
+    fn get_mut_visable(&mut self) -> &mut bool {
+        return &mut self.save.visable;
+    }
+}
+
+impl LogicToolPage {
     fn grid_contents(&mut self, _ctx: &egui::Context, ui: &mut egui::Ui) {
         ui.label("协议类型");
         ui.horizontal(|ui| {
@@ -155,24 +220,6 @@ impl LogicToolPage {
                 ui.end_row();
             }
         }
-    }
-}
-
-impl UIPageFun for LogicToolPage {
-    fn update(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, _save: &mut UIPageSave) {
-        ui.heading("Logic Tool");
-
-        egui::Grid::new("hardfault")
-            .num_columns(2)
-            .spacing([40.0, 4.0])
-            .striped(true)
-            .show(ui, |ui| self.grid_contents(ctx, ui));
-
-        if let Ok(doing) = self.channel.1.try_recv() {
-            self.doing = doing;
-        }
-
-        preview_files_being_dropped(ctx, &mut self.path);
     }
 }
 

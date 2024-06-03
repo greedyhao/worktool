@@ -1,6 +1,5 @@
 mod hardfault_tool;
 mod hci_tool;
-mod home;
 mod logic_tool;
 
 use std::{
@@ -9,48 +8,24 @@ use std::{
     path::PathBuf,
 };
 
-pub use self::hci_tool::*;
+pub use hci_tool::HciToolPage;
 pub use hardfault_tool::HardfaultToolPage;
-pub use home::HomePage;
 pub use logic_tool::LogicToolPage;
 
-pub enum UIPage {
-    Home(HomePage),
-    LogicTool(LogicToolPage),
-    HardfaultTool(HardfaultToolPage),
-    HciTool(HciToolPage),
+pub trait Interface: eframe::App {
+    fn new(cc: &eframe::CreationContext<'_>) -> Self
+    where
+        Self: Sized;
+    fn get_mut_visable(&mut self) -> &mut bool;
 }
 
-impl UIPage {
-    pub fn update(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, save: &mut UIPageSave) {
-        match self {
-            Self::Home(page) => page.update(ctx, ui, save),
-            Self::LogicTool(page) => page.update(ctx, ui, save),
-            Self::HardfaultTool(page) => page.update(ctx, ui, save),
-            Self::HciTool(page) => page.update(ctx, ui, save),
-        }
-    }
-}
-
-#[derive(serde::Deserialize, serde::Serialize)]
-pub struct UIPageSave {
-    hci_tool: HciToolSave,
-}
-
-impl Default for UIPageSave {
-    fn default() -> Self {
-        UIPageSave {
-            hci_tool: HciToolSave::default(),
-        }
-    }
-}
-
-pub trait UIPageFun {
-    fn update(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, save: &mut UIPageSave);
+pub trait InterfaceSave {
+    fn set_value(&mut self);
+    fn get_value(&self) -> Self;
 }
 
 /// Preview hovering files:
-pub fn preview_files_being_dropped(ctx: &egui::Context, drop_file: &mut String) {
+pub fn preview_files_being_dropped(ctx: &egui::Context) -> Option<String> {
     use egui::*;
     use std::fmt::Write as _;
 
@@ -69,7 +44,6 @@ pub fn preview_files_being_dropped(ctx: &egui::Context, drop_file: &mut String) 
             res
         });
         let text = format!("Dropping files:\n\n{}", path);
-        *drop_file = path;
 
         let painter =
             ctx.layer_painter(LayerId::new(Order::Foreground, Id::new("file_drop_target")));
@@ -83,7 +57,10 @@ pub fn preview_files_being_dropped(ctx: &egui::Context, drop_file: &mut String) 
             TextStyle::Heading.resolve(&ctx.style()),
             Color32::WHITE,
         );
+        // ctx.copy_text(path);
+        return Some(path);
     }
+    None
 }
 
 pub fn detect_encoding(path: &str) -> Option<String> {

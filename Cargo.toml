@@ -24,6 +24,7 @@ log = "0.4"
 serde = { version = "1", features = ["derive"] }
 encoding_rs = "0.8.34"
 charset-normalizer-rs = "1.0.6"
+once_cell = "1.19.0"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

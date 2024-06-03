@@ -1,74 +1,79 @@
-use crate::component::{
-    HardfaultToolPage, HciToolPage, HomePage, LogicToolPage, UIPage, UIPageSave,
-};
+use std::collections::HashMap;
 
-/// We derive Deserialize/Serialize so we can persist app state on shutdown.
-#[derive(serde::Deserialize, serde::Serialize)]
-#[serde(default)] // if we add new fields, give them default values when deserializing old state
-pub struct TemplateApp {
-    #[serde(skip)] // This how you opt-out of serialization of a field
-    page: UIPage,
+use crate::component::{HardfaultToolPage, HciToolPage, Interface, LogicToolPage};
+use once_cell::sync::Lazy;
 
-    page_save: UIPageSave,
+const INTERFACE_TABLE: Lazy<std::vec::Vec<(&str, ActiveInterface)>> = Lazy::new(|| {
+    vec![
+        ("LogicTool", ActiveInterface::LogicTool),
+        ("HardfaultTool", ActiveInterface::HardfaultTool),
+        ("HciTool", ActiveInterface::Hcitool),
+    ]
+});
+
+#[derive(serde::Deserialize, serde::Serialize, PartialEq, Eq, Hash)]
+enum ActiveInterface {
+    Home,
+    LogicTool,
+    HardfaultTool,
+    Hcitool,
 }
 
-impl Default for TemplateApp {
-    fn default() -> Self {
-        Self {
-            page: UIPage::Home(HomePage {}),
-            page_save: UIPageSave::default(),
-        }
-    }
+pub struct WorkToolApp {
+    interfaces: HashMap<ActiveInterface, Box<dyn Interface>>,
 }
 
-impl TemplateApp {
-    /// Called once before the first frame.
+impl WorkToolApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // This is also where you can customize the look and feel of egui using
-        // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
-
         setup_custom_fonts(&cc.egui_ctx);
-        // Load previous app state (if any).
-        // Note that you must enable the `persistence` feature for this to work.
-        if let Some(storage) = cc.storage {
-            return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
+        Self {
+            interfaces: {
+                let mut interfaces: HashMap<ActiveInterface, Box<dyn Interface>> = HashMap::new();
+                interfaces.insert(ActiveInterface::LogicTool, Box::new(LogicToolPage::new(cc)));
+                interfaces.insert(
+                    ActiveInterface::HardfaultTool,
+                    Box::new(HardfaultToolPage::new(cc)),
+                );
+                interfaces.insert(ActiveInterface::Hcitool, Box::new(HciToolPage::new(cc)));
+                interfaces
+            },
         }
-
-        Default::default()
     }
 }
 
-impl eframe::App for TemplateApp {
+impl eframe::App for WorkToolApp {
     /// Called by the frame work to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        eframe::set_value(storage, eframe::APP_KEY, self);
+        let checkbox = INTERFACE_TABLE;
+
+        for (_, interface) in checkbox.iter() {
+            if let Some(interface) = self.interfaces.get_mut(&interface) {
+                interface.save(storage);
+            }
+        }
     }
 
-    /// Called each time the UI needs repainting, which may be many times per second.
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         egui::SidePanel::right("right_panel").show(ctx, |ui| {
             ui.heading("子页面选择");
             ui.separator();
-            ui.vertical(|ui| {
-                if ui.button("home").clicked() {
-                    self.page = UIPage::Home(HomePage {});
+
+            let checkbox = INTERFACE_TABLE;
+
+            for (label, interface) in checkbox.iter() {
+                if let Some(interface) = self.interfaces.get_mut(&interface) {
+                    ui.checkbox(&mut interface.get_mut_visable(), *label);
+                    interface.update(ctx, frame);
                 }
-                if ui.button("logic tool").clicked() {
-                    self.page = UIPage::LogicTool(LogicToolPage::new());
-                }
-                if ui.button("hardfault tool").clicked() {
-                    self.page = UIPage::HardfaultTool(HardfaultToolPage::new());
-                }
-                if ui.button("hci tool").clicked() {
-                    self.page = UIPage::HciTool(HciToolPage::new());
-                }
-            });
+            }
             ui.separator();
             egui::widgets::global_dark_light_mode_buttons(ui);
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            self.page.update(ctx, ui, &mut self.page_save);
+            ui.heading("Home");
+            ui.label("在右侧选择对应的功能");
+            ui.label("需要处理的文件可以直接拖入对应窗口");
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 ui.hyperlink("https://github.com/greedyhao/worktool");

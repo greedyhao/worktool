@@ -6,8 +6,11 @@ use std::{
     thread,
 };
 
-use super::{convert_file_to_utf8, detect_encoding, UIPageFun, UIPageSave};
+use super::{convert_file_to_utf8, detect_encoding};
 use crate::component::preview_files_being_dropped;
+use crate::component::Interface;
+
+static HARDFAULT_TOOL_PAGE_KEY: &'static str = "HardfaultKey";
 
 #[derive(Debug, Default, Serialize, Clone)]
 pub struct CPURegs {
@@ -35,28 +38,110 @@ impl CPURegs {
     }
 }
 
+#[derive(Default, serde::Deserialize, serde::Serialize)]
+struct HardfaultToolSave {
+    visable: bool,
+}
+
 pub struct HardfaultToolPage {
+    save: HardfaultToolSave,
     path: String,
+    history: Option<String>,
     channel: (Sender<Vec<CPURegs>>, Receiver<Vec<CPURegs>>),
     doing: bool,
     regs: Vec<CPURegs>,
     selected: usize,
 }
 
-impl HardfaultToolPage {
-    pub fn new() -> Self {
-        HardfaultToolPage {
+impl eframe::App for HardfaultToolPage {
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        eframe::set_value(storage, HARDFAULT_TOOL_PAGE_KEY, &self.save);
+    }
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        if self.save.visable {
+            egui::Window::new("HardfaultTool").show(ctx, |ui| {
+                egui::Grid::new("hardfault")
+                    .num_columns(2)
+                    .spacing([40.0, 4.0])
+                    .striped(true)
+                    .show(ui, |ui| self.grid_contents(ctx, ui));
+
+                // for reg in &self.regs {
+                //     ui.label(reg.display());
+                // }
+                if self.regs.len() > 0 {
+                    ui.label(self.regs[self.selected].display());
+                }
+
+                if let Ok(regs) = self.channel.1.try_recv() {
+                    self.doing = false;
+                    self.regs = regs;
+                    self.selected = 0;
+                }
+
+                ctx.input(|i| {
+                    if let Some(point) = i.pointer.latest_pos() {
+                        if let Some(path) = &self.history {
+                            if ui.min_rect().contains(point) {
+                                self.path = path.to_string();
+                            }
+                            self.history = None;
+                        }
+                    }
+                });
+
+                if let Some(path) = preview_files_being_dropped(ctx) {
+                    self.history = Some(path);
+                    ctx.request_repaint();
+                }
+            });
+        }
+    }
+}
+
+impl Interface for HardfaultToolPage {
+    fn new(cc: &eframe::CreationContext<'_>) -> Self
+    where
+        Self: Sized,
+    {
+        let mut page = HardfaultToolPage {
+            save: HardfaultToolSave::default(),
             path: String::new(),
+            history: None,
             channel: mpsc::channel(),
             doing: false,
             regs: Vec::new(),
             selected: 0,
-        }
-    }
+        };
 
+        if let Some(storage) = cc.storage {
+            page.save = eframe::get_value(storage, HARDFAULT_TOOL_PAGE_KEY).unwrap_or_default();
+        }
+        page
+    }
+    fn get_mut_visable(&mut self) -> &mut bool {
+        return &mut self.save.visable;
+    }
+}
+
+impl HardfaultToolPage {
     fn grid_contents(&mut self, _ctx: &egui::Context, ui: &mut egui::Ui) {
         ui.label("文件地址");
         ui.text_edit_singleline(&mut self.path);
+        ui.end_row();
+
+        ui.label("选择需要显示的寄存器组");
+        ui.end_row();
+        ui.add_enabled_ui(self.regs.len() > 0, |ui| {
+            egui::ComboBox::from_label("寄存器组")
+                .selected_text(format!("{}", self.selected))
+                .show_ui(ui, |ui| {
+                    let len = self.regs.len();
+                    for i in 0..len {
+                        ui.selectable_value(&mut self.selected, i, format!("{}", i));
+                    }
+                });
+        });
         ui.end_row();
 
         ui.add_enabled_ui(!self.doing && self.path.len() > 0, |ui| {
@@ -71,49 +156,6 @@ impl HardfaultToolPage {
             }
         });
         ui.end_row();
-
-        ui.separator();
-        ui.end_row();
-
-        ui.add_enabled_ui(self.regs.len() > 0, |ui| {
-            ui.label("选择需要显示的寄存器组");
-            egui::ComboBox::from_label("")
-                .selected_text(format!("{}", self.selected))
-                .show_ui(ui, |ui| {
-                    let len = self.regs.len();
-                    for i in 0..len {
-                        ui.selectable_value(&mut self.selected, i, format!("{}", i));
-                    }
-                });
-        });
-        ui.end_row();
-    }
-}
-
-impl UIPageFun for HardfaultToolPage {
-    fn update(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, _save: &mut UIPageSave) {
-        ui.heading("Hardfault Tool");
-
-        egui::Grid::new("hardfault")
-            .num_columns(2)
-            .spacing([40.0, 4.0])
-            .striped(true)
-            .show(ui, |ui| self.grid_contents(ctx, ui));
-
-        // for reg in &self.regs {
-        //     ui.label(reg.display());
-        // }
-        if self.regs.len() > 0 {
-            ui.label(self.regs[self.selected].display());
-        }
-
-        if let Ok(regs) = self.channel.1.try_recv() {
-            self.doing = false;
-            self.regs = regs;
-            self.selected = 0;
-        }
-
-        preview_files_being_dropped(ctx, &mut self.path);
     }
 }
 
