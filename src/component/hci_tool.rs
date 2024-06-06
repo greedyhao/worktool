@@ -5,7 +5,7 @@ use std::{
 };
 
 use super::{convert_file_to_utf8, detect_encoding, preview_files_being_dropped};
-use crate::component::Interface;
+use crate::{add_drop_file, component::Interface};
 
 static HCI_TOOL_PAGE_KEY: &'static str = "HciKey";
 
@@ -22,6 +22,8 @@ pub struct HciToolPage {
     path: String,
     history: Option<String>,
 }
+
+add_drop_file!(HciToolPage);
 
 impl eframe::App for HciToolPage {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
@@ -42,21 +44,7 @@ impl eframe::App for HciToolPage {
                     self.doing = false;
                 }
 
-                ctx.input(|i| {
-                    if let Some(point) = i.pointer.latest_pos() {
-                        if let Some(path) = &self.history {
-                            if ui.min_rect().contains(point) {
-                                self.path = path.to_string();
-                            }
-                            self.history = None;
-                        }
-                    }
-                });
-
-                if let Some(path) = preview_files_being_dropped(ctx) {
-                    self.history = Some(path);
-                    ctx.request_repaint();
-                }
+                self.get_drop_file(ctx, ui);
             });
         }
     }

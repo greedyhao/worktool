@@ -7,6 +7,7 @@ use std::{
 };
 
 use super::{convert_file_to_utf8, detect_encoding};
+use crate::add_drop_file;
 use crate::component::preview_files_being_dropped;
 use crate::component::Interface;
 
@@ -53,6 +54,8 @@ pub struct HardfaultToolPage {
     selected: usize,
 }
 
+add_drop_file!(HardfaultToolPage);
+
 impl eframe::App for HardfaultToolPage {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, HARDFAULT_TOOL_PAGE_KEY, &self.save);
@@ -79,21 +82,7 @@ impl eframe::App for HardfaultToolPage {
                     self.selected = 0;
                 }
 
-                ctx.input(|i| {
-                    if let Some(point) = i.pointer.latest_pos() {
-                        if let Some(path) = &self.history {
-                            if ui.min_rect().contains(point) {
-                                self.path = path.to_string();
-                            }
-                            self.history = None;
-                        }
-                    }
-                });
-
-                if let Some(path) = preview_files_being_dropped(ctx) {
-                    self.history = Some(path);
-                    ctx.request_repaint();
-                }
+                self.get_drop_file(ctx, ui);
             });
         }
     }

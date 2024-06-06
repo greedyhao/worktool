@@ -8,8 +8,8 @@ use std::{
     path::PathBuf,
 };
 
-pub use hci_tool::HciToolPage;
 pub use hardfault_tool::HardfaultToolPage;
+pub use hci_tool::HciToolPage;
 pub use logic_tool::LogicToolPage;
 
 pub trait Interface: eframe::App {
@@ -22,6 +22,33 @@ pub trait Interface: eframe::App {
 pub trait InterfaceSave {
     fn set_value(&mut self);
     fn get_value(&self) -> Self;
+}
+
+#[macro_export]
+macro_rules! add_drop_file {
+    // 匹配 struct 名称和方法名称
+    ($struct_name:ident) => {
+        impl $struct_name {
+            // 定义方法
+            fn get_drop_file(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
+                ctx.input(|i| {
+                    if let Some(point) = i.pointer.latest_pos() {
+                        if let Some(path) = &self.history {
+                            if ui.min_rect().contains(point) {
+                                self.path = path.to_string();
+                            }
+                            self.history = None;
+                        }
+                    }
+                });
+
+                if let Some(path) = preview_files_being_dropped(ctx) {
+                    self.history = Some(path);
+                    ctx.request_repaint();
+                }
+            }
+        }
+    };
 }
 
 /// Preview hovering files:

@@ -7,7 +7,7 @@ use std::{
 };
 
 use super::preview_files_being_dropped;
-use crate::component::Interface;
+use crate::{add_drop_file, component::Interface};
 
 static LOGIC_TOOL_PAGE_KEY: &'static str = "LogicKey";
 
@@ -80,6 +80,8 @@ pub struct LogicToolPage {
     arg: ProtocalArgs,
 }
 
+add_drop_file!(LogicToolPage);
+
 impl eframe::App for LogicToolPage {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, LOGIC_TOOL_PAGE_KEY, &self.save);
@@ -99,21 +101,7 @@ impl eframe::App for LogicToolPage {
                     self.doing = doing;
                 }
 
-                ctx.input(|i| {
-                    if let Some(point) = i.pointer.latest_pos() {
-                        if let Some(path) = &self.history {
-                            if ui.min_rect().contains(point) {
-                                self.path = path.to_string();
-                            }
-                            self.history = None;
-                        }
-                    }
-                });
-
-                if let Some(path) = preview_files_being_dropped(ctx) {
-                    self.history = Some(path);
-                    ctx.request_repaint();
-                }
+                self.get_drop_file(ctx, ui);
             });
         }
     }
