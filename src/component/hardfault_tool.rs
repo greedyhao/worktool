@@ -6,7 +6,7 @@ use std::{
     thread,
 };
 
-use super::{convert_file_to_utf8, detect_encoding};
+use super::{file_encoding_proc, file_encoding_select, FileEncoding};
 use crate::add_drop_file;
 use crate::component::preview_files_being_dropped;
 use crate::component::Interface;
@@ -52,6 +52,7 @@ pub struct HardfaultToolPage {
     doing: bool,
     regs: Vec<CPURegs>,
     selected: usize,
+    file_encoding: FileEncoding,
 }
 
 add_drop_file!(HardfaultToolPage);
@@ -101,6 +102,7 @@ impl Interface for HardfaultToolPage {
             doing: false,
             regs: Vec::new(),
             selected: 0,
+            file_encoding: FileEncoding::UTF8,
         };
 
         if let Some(storage) = cc.storage {
@@ -133,12 +135,16 @@ impl HardfaultToolPage {
         });
         ui.end_row();
 
+        file_encoding_select(ui, &mut self.file_encoding);
+
         ui.add_enabled_ui(!self.doing && self.path.len() > 0, |ui| {
             if ui.button("处理").clicked() {
                 self.doing = true;
                 let tx = self.channel.0.clone();
                 let path = self.path.clone();
+                let encode = self.file_encoding.clone();
                 thread::spawn(move || {
+                    file_encoding_proc(&path, &encode);
                     let ret = hardfault_tool(path);
                     tx.send(ret).unwrap();
                 });
@@ -156,10 +162,6 @@ fn hardfault_tool(path: String) -> Vec<CPURegs> {
     let empty_str = "0xXXXXXXXX";
     let mut regs = CPURegs::default();
     let mut reg_vec = Vec::new();
-
-    if let Some(encode) = detect_encoding(&path) {
-        convert_file_to_utf8(&path, &encode).unwrap();
-    }
 
     if let Ok(mut file) = File::open(&path) {
         println!("open {} success", &path);

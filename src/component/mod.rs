@@ -90,7 +90,16 @@ pub fn preview_files_being_dropped(ctx: &egui::Context) -> Option<String> {
     None
 }
 
-pub fn detect_encoding(path: &str) -> Option<String> {
+#[derive(Debug, PartialEq, Clone)]
+pub enum FileEncoding {
+    UTF8,
+    UTF16,
+    UTF32,
+    GBK,
+    Other,
+}
+
+fn detect_encoding(path: &str) -> Option<String> {
     if let Ok(result) = charset_normalizer_rs::from_path(&PathBuf::from(path), None) {
         if let Some(best) = result.get_best() {
             return Some(best.encoding().to_uppercase().to_string());
@@ -99,7 +108,7 @@ pub fn detect_encoding(path: &str) -> Option<String> {
     None
 }
 
-pub fn convert_file_to_utf8(path: &str, encoding_name: &str) -> std::io::Result<()> {
+fn convert_file_to_utf8(path: &str, encoding_name: &str) -> std::io::Result<()> {
     use std::io::Read;
 
     let mut file = File::open(path)?;
@@ -107,7 +116,7 @@ pub fn convert_file_to_utf8(path: &str, encoding_name: &str) -> std::io::Result<
 
     let mut buf = Vec::new();
     file.read_to_end(&mut buf)?;
-    // println!("{}", buf.len());
+    println!("{} {}", buf.len(), encoding_name);
     let encoding =
         encoding_rs::Encoding::for_label(encoding_name.as_bytes()).unwrap_or(encoding_rs::UTF_8);
 
@@ -127,4 +136,31 @@ pub fn convert_file_to_utf8(path: &str, encoding_name: &str) -> std::io::Result<
     fs::rename(path, &format!("{}.bak", path))?;
     fs::rename(&output_path, path)?;
     Ok(())
+}
+
+pub fn file_encoding_select(ui: &mut egui::Ui, encode: &mut FileEncoding) {
+    ui.label("选择输入文件编码");
+    egui::ComboBox::from_label("文件编码")
+        .selected_text(format!("{:?}", encode))
+        .show_ui(ui, |ui| {
+            ui.selectable_value(encode, FileEncoding::UTF8, "UTF8");
+            ui.selectable_value(encode, FileEncoding::UTF16, "UTF16");
+            ui.selectable_value(encode, FileEncoding::UTF32, "UTF32");
+            ui.selectable_value(encode, FileEncoding::GBK, "GBK");
+            ui.selectable_value(encode, FileEncoding::Other, "Other");
+        });
+    ui.end_row();
+}
+
+pub fn file_encoding_proc(path: &str, encode: &FileEncoding) {
+    let encode = match encode {
+        FileEncoding::UTF8 => Some("UTF8".to_string()),
+        FileEncoding::UTF16 => Some("UTF16".to_string()),
+        FileEncoding::UTF32 => Some("UTF32".to_string()),
+        FileEncoding::GBK => Some("GBK".to_string()),
+        _ => detect_encoding(path),
+    };
+    if let Some(encode) = encode {
+        convert_file_to_utf8(path, &encode).unwrap();
+    }
 }

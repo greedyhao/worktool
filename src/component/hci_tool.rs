@@ -4,7 +4,7 @@ use std::{
     thread,
 };
 
-use super::{convert_file_to_utf8, detect_encoding, preview_files_being_dropped};
+use super::{file_encoding_proc, file_encoding_select, preview_files_being_dropped, FileEncoding};
 use crate::{add_drop_file, component::Interface};
 
 static HCI_TOOL_PAGE_KEY: &'static str = "HciKey";
@@ -21,6 +21,7 @@ pub struct HciToolPage {
     channel: (Sender<()>, Receiver<()>),
     path: String,
     history: Option<String>,
+    file_encoding: FileEncoding,
 }
 
 add_drop_file!(HciToolPage);
@@ -61,6 +62,7 @@ impl Interface for HciToolPage {
             channel: mpsc::channel(),
             path: String::new(),
             history: None,
+            file_encoding: FileEncoding::UTF8,
         };
 
         if let Some(storage) = cc.storage {
@@ -83,6 +85,8 @@ impl HciToolPage {
         ui.text_edit_singleline(&mut self.path);
         ui.end_row();
 
+        file_encoding_select(ui, &mut self.file_encoding);
+
         ui.add_enabled_ui(
             !self.doing && self.path.len() > 0 && self.save.program.len() > 0,
             |ui| {
@@ -91,10 +95,9 @@ impl HciToolPage {
                     let tx = self.channel.0.clone();
                     let program = self.save.program.clone();
                     let path = self.path.clone();
+                    let encode = self.file_encoding.clone();
                     thread::spawn(move || {
-                        if let Some(encode) = detect_encoding(&path) {
-                            convert_file_to_utf8(&path, &encode).unwrap();
-                        }
+                        file_encoding_proc(&path, &encode);
                         Command::new(program).arg(path).output().unwrap();
                         tx.send(()).unwrap();
                     });
