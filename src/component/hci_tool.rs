@@ -18,7 +18,7 @@ pub struct HciToolSave {
 pub struct HciToolPage {
     save: HciToolSave,
     doing: bool,
-    channel: (Sender<()>, Receiver<()>),
+    channel: (Sender<bool>, Receiver<bool>),
     path: String,
     history: Option<String>,
     file_encoding: FileEncoding,
@@ -41,8 +41,11 @@ impl eframe::App for HciToolPage {
                     .striped(true)
                     .show(ui, |ui| self.grid_contents(ctx, ui));
 
-                if let Ok(_) = self.channel.1.try_recv() {
+                if let Ok(status) = self.channel.1.try_recv() {
                     self.doing = false;
+                    if !status {
+                        self.file_encoding = FileEncoding::Other;
+                    }
                 }
 
                 self.get_drop_file(ctx, ui);
@@ -75,6 +78,52 @@ impl Interface for HciToolPage {
     }
 }
 
+fn hci_file_preproc(path: &str, tx: Sender<bool>, encode: &FileEncoding) {
+    use regex::*;
+    use std::fs;
+
+    let content = match fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => {
+            tx.send(false).unwrap();
+            return;
+        }
+    };
+
+    // 定义正则表达式
+    let re = Regex::new(r"\(\d{2}:\d{2}:\d{2}\.\d{3}\)").unwrap();
+    // 替换匹配的字符串，前面添加回车符
+    let modified_content = re.replace_all(&content, "");
+
+    let re = Regex::new(r"\[\d{2}:\d{2}:\d{2}\.\d{3}\]").unwrap();
+
+    let mut result = String::new();
+    for line in modified_content.lines() {
+        if line.len() == 0 {
+            continue;
+        }
+        if re.is_match(line) {
+            if ((line.contains("CMD ") || line.contains("EVT ") || line.contains("ACL "))
+                && (line.contains(" => ") || line.contains(" <= ")))
+                || (line.contains("MSG ") && (line.contains(" -> ") || line.contains(" <- ")))
+            {
+                result.push_str(re.replace_all(line, "\n$0").as_ref());
+            } else {
+                result.push_str(re.replace_all(line, "").as_ref());
+            }
+        } else {
+            result.push_str(line);
+        }
+        result.push_str("\n");
+    }
+
+    if *encode == FileEncoding::UTF8 {
+        fs::rename(path, &format!("{}.old", path)).unwrap();
+    }
+    let result: String = result.chars().filter(|c| *c < 128 as char).collect();
+    fs::write(path, result).expect("Failed to write to the file");
+}
+
 impl HciToolPage {
     fn grid_contents(&mut self, _ctx: &egui::Context, ui: &mut egui::Ui) {
         ui.label("log2cfa 路径（会保存）");
@@ -98,8 +147,9 @@ impl HciToolPage {
                     let encode = self.file_encoding.clone();
                     thread::spawn(move || {
                         file_encoding_proc(&path, &encode);
+                        hci_file_preproc(&path, tx.clone(), &encode);
                         Command::new(program).arg(path).output().unwrap();
-                        tx.send(()).unwrap();
+                        tx.send(true).unwrap();
                     });
                 }
             },

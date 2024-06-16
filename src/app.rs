@@ -74,6 +74,14 @@ impl eframe::App for WorkToolApp {
             ui.heading("Home");
             ui.label("在右侧选择对应的功能");
             ui.label("需要处理的文件可以直接拖入对应窗口");
+            ui.separator();
+
+            ui.label("输入文件编码的说明");
+            ui.label("utf8 不会转化，other 会自己猜测编码");
+            ui.label("建议自己选择编码格式，猜测的编码可能会不对");
+            ui.label("hci tool 的话，存在中文字符就用other，避免转完之后还有中文；log2cfa.exe 不支持中文字符");
+            ui.label("转换完后，会有 .bak 文件作为备份");
+            ui.separator();
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 ui.hyperlink("https://github.com/greedyhao/worktool");

@@ -154,7 +154,7 @@ pub fn file_encoding_select(ui: &mut egui::Ui, encode: &mut FileEncoding) {
 
 pub fn file_encoding_proc(path: &str, encode: &FileEncoding) {
     let encode = match encode {
-        FileEncoding::UTF8 => Some("UTF8".to_string()),
+        FileEncoding::UTF8 => return,
         FileEncoding::UTF16 => Some("UTF16".to_string()),
         FileEncoding::UTF32 => Some("UTF32".to_string()),
         FileEncoding::GBK => Some("GBK".to_string()),
