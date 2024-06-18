@@ -9,7 +9,7 @@ use std::{
 use super::preview_files_being_dropped;
 use crate::{add_drop_file, component::Interface};
 
-static LOGIC_TOOL_PAGE_KEY: &'static str = "LogicKey";
+static LOGIC_TOOL_PAGE_KEY: &str = "LogicKey";
 
 #[derive(Copy, Clone, PartialEq, Debug, Deserialize)]
 enum SpiConvType {
@@ -224,10 +224,10 @@ fn logic_tool_preproc(in_file: &str, header: &str) -> Option<Lines<BufReader<Fil
     return None;
 }
 
-const KINGST_ERROR_STR: &'static str =
+const KINGST_ERROR_STR: &str =
     "The initial (idle) state of the CLK line does not match the settings";
 
-const KINGST_IIS_FILE_FORMAT: &'static str = "Time [s],Channel,Value";
+const KINGST_IIS_FILE_FORMAT: &str = "Time [s],Channel,Value";
 fn logic_tool_proc_iis(_args: &LogicIISArgs, path: &str) {
     let conv_file = path;
 
@@ -252,7 +252,7 @@ fn logic_tool_proc_iis(_args: &LogicIISArgs, path: &str) {
     }
 }
 
-const KINGST_SPI_FILE_FORMAT: &'static str = "Time [s],Packet ID,MOSI,MISO";
+const KINGST_SPI_FILE_FORMAT: &str = "Time [s],Packet ID,MOSI,MISO";
 
 fn logic_tool_proc_spi_raw(conv_file: &str) {
     if let Some(src) = logic_tool_preproc(conv_file, KINGST_SPI_FILE_FORMAT) {
@@ -394,7 +394,7 @@ fn logic_tool_proc_spi(args: &LogicSpiArgs, path: &str) {
     }
 }
 
-const KINGST_UART_FILE_FORMAT: &'static str = "Time [s],Value,Parity Error,Framing Error";
+const KINGST_UART_FILE_FORMAT: &str = "Time [s],Value,Parity Error,Framing Error";
 
 fn logic_tool_proc_uart_txt(conv_file: &str) {
     if let Some(src) = logic_tool_preproc(conv_file, KINGST_UART_FILE_FORMAT) {

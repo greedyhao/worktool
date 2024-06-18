@@ -19,11 +19,6 @@ pub trait Interface: eframe::App {
     fn get_mut_visable(&mut self) -> &mut bool;
 }
 
-pub trait InterfaceSave {
-    fn set_value(&mut self);
-    fn get_value(&self) -> Self;
-}
-
 #[macro_export]
 macro_rules! add_drop_file {
     // 匹配 struct 名称和方法名称

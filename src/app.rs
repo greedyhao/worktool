@@ -97,6 +97,7 @@ fn setup_custom_fonts(ctx: &egui::Context) {
 
     // Install my own font (maybe supporting non-latin characters).
     // .ttf and .otf files supported.
+    #[cfg(target_os = "windows")]
     fonts.font_data.insert(
         "my_font".to_owned(),
         egui::FontData::from_static(include_bytes!("c:/Windows/Fonts/msyh.ttc")),

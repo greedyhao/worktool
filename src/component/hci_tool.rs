@@ -7,7 +7,7 @@ use std::{
 use super::{file_encoding_proc, file_encoding_select, preview_files_being_dropped, FileEncoding};
 use crate::{add_drop_file, component::Interface};
 
-static HCI_TOOL_PAGE_KEY: &'static str = "HciKey";
+static HCI_TOOL_PAGE_KEY: &str = "HciKey";
 
 #[derive(Default, serde::Deserialize, serde::Serialize)]
 pub struct HciToolSave {
