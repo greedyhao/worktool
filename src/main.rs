@@ -20,7 +20,7 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "worktool",
         native_options,
-        Box::new(|cc| Box::new(worktool::WorkToolApp::new(cc))),
+        Box::new(|cc| Ok(Box::new(worktool::WorkToolApp::new(cc)))),
     )
 }
 

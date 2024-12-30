@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::component::{HardfaultToolPage, HciToolPage, Interface, LogicToolPage};
 use once_cell::sync::Lazy;
@@ -67,7 +68,7 @@ impl eframe::App for WorkToolApp {
                 }
             }
             ui.separator();
-            egui::widgets::global_dark_light_mode_buttons(ui);
+            egui::widgets::global_theme_preference_buttons(ui);
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -97,10 +98,17 @@ fn setup_custom_fonts(ctx: &egui::Context) {
 
     // Install my own font (maybe supporting non-latin characters).
     // .ttf and .otf files supported.
+    // #[cfg(target_os = "windows")]
+    // fonts.font_data.insert(
+    //     "my_font".to_owned(),
+    //     egui::FontData::from_static(include_bytes!("c:/Windows/Fonts/msyh.ttc")),
+    // );
     #[cfg(target_os = "windows")]
     fonts.font_data.insert(
         "my_font".to_owned(),
-        egui::FontData::from_static(include_bytes!("c:/Windows/Fonts/msyh.ttc")),
+        Arc::new(egui::FontData::from_static(include_bytes!(
+            "c:/Windows/Fonts/msyh.ttc"
+        ))),
     );
 
     // Put my font first (highest priority) for proportional text:
