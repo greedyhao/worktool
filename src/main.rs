@@ -37,7 +37,7 @@ fn main() {
             .start(
                 "the_canvas_id", // hardcode it
                 web_options,
-                Box::new(|cc| Box::new(worktool::TemplateApp::new(cc))),
+                Box::new(|cc| Ok(Box::new(worktool::TemplateApp::new(cc)))),
             )
             .await
             .expect("failed to start eframe");
