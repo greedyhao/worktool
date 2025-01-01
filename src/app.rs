@@ -2,26 +2,39 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::component::{HardfaultToolPage, HciToolPage, Interface, LogicToolPage};
-use once_cell::sync::Lazy;
 
-const INTERFACE_TABLE: Lazy<std::vec::Vec<(&str, ActiveInterface)>> = Lazy::new(|| {
-    vec![
-        ("LogicTool", ActiveInterface::LogicTool),
-        ("HardfaultTool", ActiveInterface::HardfaultTool),
-        ("HciTool", ActiveInterface::Hcitool),
-    ]
-});
+use egui::vec2;
+use egui::{ScrollArea, Ui};
 
-#[derive(serde::Deserialize, serde::Serialize, PartialEq, Eq, Hash)]
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+
+include!(concat!(env!("OUT_DIR"), "/info.rs"));
+
+#[derive(
+    serde::Deserialize, serde::Serialize, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive,
+)]
+#[repr(u32)]
 enum ActiveInterface {
     Home,
     LogicTool,
     HardfaultTool,
-    Hcitool,
+    HciTool,
+}
+
+impl ActiveInterface {
+    fn as_str(&self) -> &'static str {
+        match self {
+            ActiveInterface::Home => "Home",
+            ActiveInterface::HardfaultTool => "Hardfault Tool",
+            ActiveInterface::HciTool => "Hci Tool",
+            ActiveInterface::LogicTool => "Logic Tool",
+        }
+    }
 }
 
 pub struct WorkToolApp {
     interfaces: HashMap<ActiveInterface, Box<dyn Interface>>,
+    current_page: ActiveInterface,
 }
 
 impl WorkToolApp {
@@ -35,59 +48,74 @@ impl WorkToolApp {
                     ActiveInterface::HardfaultTool,
                     Box::new(HardfaultToolPage::new(cc)),
                 );
-                interfaces.insert(ActiveInterface::Hcitool, Box::new(HciToolPage::new(cc)));
+                interfaces.insert(ActiveInterface::HciTool, Box::new(HciToolPage::new(cc)));
                 interfaces
             },
+            current_page: ActiveInterface::Home,
         }
+    }
+
+    fn show_main_page(&mut self, ui: &mut Ui) {
+        // 上半部分：文字描述
+        ui.heading("Home");
+        ui.label(format!("编译时间：{}", COMPILE_TIME));
+        ui.label(format!("git 信息：{} ({})", &GIT_HASH[0..8], GIT_TIMESTAMP));
+        ui.label("");
+
+        ui.label("在下方选择对应的功能");
+        ui.label("需要处理的文件可以直接拖入对应窗口\n");
+
+        ui.label("输入文件编码的说明：");
+        ui.label("utf8 不会转化，other 会自己猜测编码");
+        ui.label("建议自己选择编码格式，猜测的编码可能会不对");
+        ui.label("hci tool 的话，存在中文字符就用other，避免转完之后还有中文；log2cfa.exe 不支持中文字符");
+        ui.label("转换完后，会有 .bak 文件作为备份");
+        ui.separator();
+
+        // 下半部分：应用宫格排列
+        ScrollArea::vertical().show(ui, |ui| {
+            ui.columns(3, |columns| {
+                for (i, column) in columns.iter_mut().enumerate() {
+                    let page = ActiveInterface::try_from((i + 1) as u32).unwrap();
+                    let app_name = format!("{}", page.as_str());
+                    if column
+                        .add_sized(vec2(100.0, 100.0), egui::Button::new(&app_name))
+                        .clicked()
+                    {
+                        self.current_page = page;
+                    }
+                }
+            });
+        });
+
+        ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+            ui.hyperlink("https://github.com/greedyhao/worktool");
+            egui::warn_if_debug_build(ui);
+        });
     }
 }
 
 impl eframe::App for WorkToolApp {
     /// Called by the frame work to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        let checkbox = INTERFACE_TABLE;
-
-        for (_, interface) in checkbox.iter() {
-            if let Some(interface) = self.interfaces.get_mut(&interface) {
-                interface.save(storage);
-            }
+        for (_, interface) in self.interfaces.iter_mut() {
+            interface.save(storage);
         }
     }
 
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        egui::SidePanel::right("right_panel").show(ctx, |ui| {
-            ui.heading("子页面选择");
-            ui.separator();
-
-            let checkbox = INTERFACE_TABLE;
-
-            for (label, interface) in checkbox.iter() {
-                if let Some(interface) = self.interfaces.get_mut(&interface) {
-                    ui.checkbox(&mut interface.get_mut_visable(), *label);
-                    interface.update(ctx, frame);
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            if self.current_page == ActiveInterface::Home {
+                self.show_main_page(ui);
+            } else {
+                if let Some(interface) = self.interfaces.get_mut(&self.current_page) {
+                    interface.new_update(
+                        ui,
+                        ctx,
+                        Box::new(|| self.current_page = ActiveInterface::Home),
+                    );
                 }
             }
-            ui.separator();
-            egui::widgets::global_theme_preference_buttons(ui);
-        });
-
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Home");
-            ui.label("在右侧选择对应的功能");
-            ui.label("需要处理的文件可以直接拖入对应窗口");
-            ui.separator();
-
-            ui.label("输入文件编码的说明");
-            ui.label("utf8 不会转化，other 会自己猜测编码");
-            ui.label("建议自己选择编码格式，猜测的编码可能会不对");
-            ui.label("hci tool 的话，存在中文字符就用other，避免转完之后还有中文；log2cfa.exe 不支持中文字符");
-            ui.label("转换完后，会有 .bak 文件作为备份");
-            ui.separator();
-
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                ui.hyperlink("https://github.com/greedyhao/worktool");
-                egui::warn_if_debug_build(ui);
-            });
         });
     }
 }
@@ -98,11 +126,6 @@ fn setup_custom_fonts(ctx: &egui::Context) {
 
     // Install my own font (maybe supporting non-latin characters).
     // .ttf and .otf files supported.
-    // #[cfg(target_os = "windows")]
-    // fonts.font_data.insert(
-    //     "my_font".to_owned(),
-    //     egui::FontData::from_static(include_bytes!("c:/Windows/Fonts/msyh.ttc")),
-    // );
     #[cfg(target_os = "windows")]
     fonts.font_data.insert(
         "my_font".to_owned(),

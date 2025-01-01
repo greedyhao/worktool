@@ -6,7 +6,7 @@ use std::{
     thread,
 };
 
-use super::{file_encoding_proc, file_encoding_select, FileEncoding};
+use super::{file_encoding_proc, file_encoding_select, show_page_header, FileEncoding};
 use crate::add_drop_file;
 use crate::component::preview_files_being_dropped;
 use crate::component::Interface;
@@ -61,32 +61,7 @@ impl eframe::App for HardfaultToolPage {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, HARDFAULT_TOOL_PAGE_KEY, &self.save);
     }
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if self.save.visable {
-            egui::Window::new("HardfaultTool").show(ctx, |ui| {
-                egui::Grid::new("hardfault")
-                    .num_columns(2)
-                    .spacing([40.0, 4.0])
-                    .striped(true)
-                    .show(ui, |ui| self.grid_contents(ctx, ui));
-
-                // for reg in &self.regs {
-                //     ui.label(reg.display());
-                // }
-                if self.regs.len() > 0 {
-                    ui.label(self.regs[self.selected].display());
-                }
-
-                if let Ok(regs) = self.channel.1.try_recv() {
-                    self.doing = false;
-                    self.regs = regs;
-                    self.selected = 0;
-                }
-
-                self.get_drop_file(ctx, ui);
-            });
-        }
-    }
+    fn update(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {}
 }
 
 impl Interface for HardfaultToolPage {
@@ -110,8 +85,34 @@ impl Interface for HardfaultToolPage {
         }
         page
     }
-    fn get_mut_visable(&mut self) -> &mut bool {
-        return &mut self.save.visable;
+    fn new_update<'a>(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        close: Box<dyn FnMut() + 'a>,
+    ) {
+        show_page_header(ui, close);
+
+        egui::Grid::new("hardfault")
+            .num_columns(2)
+            .spacing([40.0, 4.0])
+            .striped(true)
+            .show(ui, |ui| self.grid_contents(ctx, ui));
+
+        // for reg in &self.regs {
+        //     ui.label(reg.display());
+        // }
+        if self.regs.len() > 0 {
+            ui.label(self.regs[self.selected].display());
+        }
+
+        if let Ok(regs) = self.channel.1.try_recv() {
+            self.doing = false;
+            self.regs = regs;
+            self.selected = 0;
+        }
+
+        self.get_drop_file(ctx, ui);
     }
 }
 

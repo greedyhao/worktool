@@ -16,7 +16,12 @@ pub trait Interface: eframe::App {
     fn new(cc: &eframe::CreationContext<'_>) -> Self
     where
         Self: Sized;
-    fn get_mut_visable(&mut self) -> &mut bool;
+    fn new_update<'a>(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        close: Box<dyn FnMut() + 'a>,
+    );
 }
 
 #[macro_export]
@@ -44,6 +49,13 @@ macro_rules! add_drop_file {
             }
         }
     };
+}
+
+pub fn show_page_header<'a>(ui: &mut egui::Ui, mut close: Box<dyn FnMut() + 'a>) {
+    if ui.button("返回").clicked() {
+        close();
+    }
+    ui.separator();
 }
 
 /// Preview hovering files:
