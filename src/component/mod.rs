@@ -1,6 +1,7 @@
 mod hardfault_tool;
 mod hci_tool;
 mod logic_tool;
+mod analyze_tool;
 
 use std::{
     fs::{self, File},
@@ -11,6 +12,7 @@ use std::{
 pub use hardfault_tool::HardfaultToolPage;
 pub use hci_tool::HciToolPage;
 pub use logic_tool::LogicToolPage;
+pub use analyze_tool::AnalyzeToolPage;
 
 pub trait Interface: eframe::App {
     fn new(cc: &eframe::CreationContext<'_>) -> Self

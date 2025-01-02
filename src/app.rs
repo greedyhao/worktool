@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::component::{HardfaultToolPage, HciToolPage, Interface, LogicToolPage};
+use crate::component::{AnalyzeToolPage, HardfaultToolPage, HciToolPage, Interface, LogicToolPage};
 
 use egui::vec2;
 use egui::{ScrollArea, Ui};
@@ -19,6 +19,7 @@ enum ActiveInterface {
     LogicTool,
     HardfaultTool,
     HciTool,
+    AnalyzeTool,
 }
 
 impl ActiveInterface {
@@ -28,6 +29,7 @@ impl ActiveInterface {
             ActiveInterface::HardfaultTool => "Hardfault Tool",
             ActiveInterface::HciTool => "Hci Tool",
             ActiveInterface::LogicTool => "Logic Tool",
+            ActiveInterface::AnalyzeTool => "Analyze Tool",
         }
     }
 }
@@ -49,6 +51,10 @@ impl WorkToolApp {
                     Box::new(HardfaultToolPage::new(cc)),
                 );
                 interfaces.insert(ActiveInterface::HciTool, Box::new(HciToolPage::new(cc)));
+                interfaces.insert(
+                    ActiveInterface::AnalyzeTool,
+                    Box::new(AnalyzeToolPage::new(cc)),
+                );
                 interfaces
             },
             current_page: ActiveInterface::Home,
@@ -74,18 +80,32 @@ impl WorkToolApp {
 
         // 下半部分：应用宫格排列
         ScrollArea::vertical().show(ui, |ui| {
-            ui.columns(3, |columns| {
-                for (i, column) in columns.iter_mut().enumerate() {
-                    let page = ActiveInterface::try_from((i + 1) as u32).unwrap();
-                    let app_name = format!("{}", page.as_str());
-                    if column
-                        .add_sized(vec2(100.0, 100.0), egui::Button::new(&app_name))
-                        .clicked()
-                    {
-                        self.current_page = page;
+            let line_size = 3;
+            let total = self.interfaces.len();
+            let line = (total + line_size - 1) / line_size;
+            let mut cnt = 0;
+
+            for l in 0..line {
+                ui.columns(3, |columns| {
+                    for (i, column) in columns.iter_mut().enumerate() {
+                        cnt += 1;
+                        if cnt > total {
+                            break;
+                        }
+
+                        let page =
+                            ActiveInterface::try_from((i + l * line_size + 1) as u32).unwrap();
+                        let app_name = format!("{}", page.as_str());
+
+                        if column
+                            .add_sized(vec2(100.0, 100.0), egui::Button::new(&app_name))
+                            .clicked()
+                        {
+                            self.current_page = page;
+                        }
                     }
-                }
-            });
+                });
+            }
         });
 
         ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
